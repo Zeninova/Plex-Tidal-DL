@@ -7,6 +7,8 @@ import tidalapi
 import subprocess
 import os
 import json
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
 # Configuration and log setup
 baseurl = 'http://localhost:32400'
@@ -17,9 +19,12 @@ session = tidalapi.Session()
 current_directory = os.path.dirname(__file__)
 cred_file = current_directory + "/.credentials"
 
-print_lock = threading.Lock()
 scan_event = threading.Event()
 reset_interval_event = threading.Event()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, filename='application.log',
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load or initialize configuration
 def load_config():
@@ -27,12 +32,14 @@ def load_config():
         with open('config.json', 'r') as f:
             return json.load(f)
     except FileNotFoundError:
+        logging.warning("Config file not found. Using default settings.")
         return {"interval": 1800}  # Default interval of 30 minutes in seconds
 
 # Save configuration
 def save_config(config):
     with open('config.json', 'w') as f:
         json.dump(config, f)
+    logging.info("Configuration saved.")
 
 # Read credentials
 def read_creds():
@@ -51,8 +58,7 @@ def write_creds(typ, tok, ref, exp):
         f.write("tok=" + tok + "\n")
         f.write("ref=" + ref + "\n")
         f.write("exp=" + exp.strftime("%Y-%m-%d %H:%M:%S.%f"))
-        f.close()
-        log("New credentials saved to: " + cred_file)
+    logging.info(f"New credentials saved to: {cred_file}")
 
 def login(): 
     session.login_oauth_simple()
@@ -61,46 +67,33 @@ def login():
     refresh_token = session.refresh_token
     expiry_time = session.expiry_time
     write_creds(token_type, access_token, refresh_token, expiry_time)
-    log("New token expires:" + expiry_time.strftime("%Y-%m-%d %H:%M:%S.%f"))
+    logging.info(f"New token expires: {expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f')}")
     return session.check_login()
 
 def connect(session):
     try:  
         creds = read_creds()
-    except:  
-        log("API credentials could not be read")
-        login()  
-        return session.check_login()
+    except Exception as e:  
+        logging.error("API credentials could not be read", exc_info=True)
+        return login()
 
     try:  
-        if session.load_oauth_session(
-            creds[0], creds[1], creds[2], creds[3]
-        ):  
-            log("Session Connected")
-    except:  
-        log("Connection Failed, try getting new API credentials")
+        if session.load_oauth_session(*creds):  
+            logging.info("Session Connected")
+    except Exception as e:  
+        logging.error("Connection Failed, try getting new API credentials", exc_info=True)
         if login():  
-            log("Successfully logged in")
+            logging.info("Successfully logged in")
         else:  
-            log("Log in failed, exiting")
+            logging.error("Log in failed, exiting")
             exit(0)
     return session.check_login()  
 
-# Enhanced log function to ensure thread-safe prints
-def log(message, interval=None):
-    with print_lock:
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if interval is not None:
-            message += f" (Interval: {interval} seconds)"
-        print(f"\n{timestamp} - {message}")
-
-# Settings menu
 def settings_menu():
     global next_scan_time, scan_event, reset_interval_event
-    with print_lock:
-        config = load_config()
-        print(f"\nCurrent scan interval is {config['interval']} seconds.")
-        interval_input = input("Enter new interval (e.g., '30m' for 30 minutes or '45s' for 45 seconds): ")
+    config = load_config()
+    logging.info(f"Current scan interval is {config['interval']} seconds.")
+    interval_input = input("Enter new interval (e.g., '30m' for 30 minutes or '45s' for 45 seconds): ")
 
     valid_input = False
     if interval_input.endswith('m'):
@@ -114,80 +107,103 @@ def settings_menu():
     if valid_input:
         config['interval'] = new_interval
         save_config(config)
-        log(f"Interval updated to {new_interval} seconds.")
-        next_scan_time = time.time() + new_interval  # Update next scan time immediately
-        reset_interval_event.set()  # Signal the scanning thread to reset its sleep cycle
-        scan_event.set()  # Trigger the event to immediately apply the new interval
-        scan_event.clear()  # Clear the event right after setting
+        logging.info(f"Interval updated to {new_interval} seconds.")
+        next_scan_time = time.time() + new_interval
+        reset_interval_event.set()
+        scan_event.set()
+        scan_event.clear()
     else:
-        with print_lock:
-            log("Invalid input. Please specify 'm' for minutes or 's' for seconds.")
-
-
+        logging.warning("Invalid input for interval change.")
 
 # Background scanning function
 def background_scanning():
     while True:
         check_albums(session)
-        reset_interval_event.wait(load_config()['interval'])  # Wait for interval change or manual scan
-        reset_interval_event.clear()  # Clear the event
-        
+        reset_interval_event.wait(load_config()['interval'])
+        reset_interval_event.clear()
 
 # Check and process albums
 def check_albums(session):
-    config = load_config()  # Load the configuration outside the loop
+    config = load_config()
     interval = config['interval']
     favorite_albums = session.user.favorites.albums() if session.user.favorites.albums() else []
     if not favorite_albums:
-        log("No favorited albums to process.", interval=interval)
+        logging.info("No favorited albums to process.", extra={"interval": interval})
         return
 
     for album in favorite_albums:
-        log(f"{album.id} - {album.name} by {album.artist.name}", interval=interval)
         command = f"tidal-dl -l {album.id}"
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate()
         if stderr:
-            log(f"Error executing command for album {album.id}: {stderr.decode('utf-8')}", interval=interval)
+            logging.error(f"Error executing command for album {album.id}: {stderr.decode('utf-8')}", extra={"interval": interval})
         else:
-            log(stdout.decode("utf-8"), interval=interval)
+            logging.info(stdout.decode("utf-8"), extra={"interval": interval})
             session.user.favorites.remove_album(album.id)
             update_library()
 
 def update_library():
     for library in plex.library.sections():
-        log(f"Updating library: {library.title}")
         library.update()
+        logging.info(f"Updating library: {library.title}")
 
-# Main loop
+
+def setup_logging():
+    # Get the root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # Remove all handlers associated with the root logger
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+
+    # Create a formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+    # Create and set up a timed rotating file handler
+    file_handler = TimedRotatingFileHandler('application.log', when='midnight', interval=1, backupCount=30)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+    
+    # Optionally, keep some backup files (e.g., last 30 days)
+    file_handler.backupCount = 30
+
+    # Create and set up a stream handler
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(logging.INFO)
+
+    # Add the handlers to the logger
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
+
+
+
 def main_loop():
     global next_scan_time, scan_event
     next_scan_time = time.time()
 
     def start_scanning():
-        global next_scan_time, scan_event, reset_interval_event
         background_scan_thread = threading.Thread(target=background_scanning)
         background_scan_thread.daemon = True
         background_scan_thread.start()
 
-    # Start the background scanning thread
-    start_scanning()
 
     while True:
         user_input = input("\nPress 'c' to change settings, 's' to scan now, or 'q' to quit: \n")
         if user_input == 'c':
             settings_menu()
         elif user_input == 's':
-            log("Manual scan triggered.")
+            logging.info("Manual scan triggered.")
             check_albums(session)
-            reset_interval_event.set()  # Signal the scanning thread to reset its sleep cycle
+            reset_interval_event.set()
         elif user_input == 'q':
-            print("Exiting program.")
+            logging.info("Exiting program.")
             break
 
-
 if __name__ == "__main__":
+    setup_logging()
     if connect(session):
         main_loop()
     else:
-        log("Connection has failed.")
+        logging.error("Connection has failed.")
