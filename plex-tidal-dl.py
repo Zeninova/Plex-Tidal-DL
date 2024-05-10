@@ -190,7 +190,7 @@ def main_loop():
             settings_menu()
         elif user_input == 's':
             log("Manual scan triggered.")
-            check_albums()
+            check_albums(session)
             next_scan_time = time.time() + load_config()['interval']  # Reset next scan time to scheduled interval
             scan_event.set()  # Ensure scan now respects the new interval if recently changed
         elif user_input == 'q':
