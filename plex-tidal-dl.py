@@ -10,7 +10,7 @@ import json
 
 # Configuration and log setup
 baseurl = 'http://localhost:32400'
-token = '--L5DmQR3T_coBnzu3PW'
+token = '<TOKEN HERE>'
 plex = PlexServer(baseurl, token)
 
 session = tidalapi.Session()
@@ -96,7 +96,7 @@ def log(message, interval=None):
 
 # Settings menu
 def settings_menu():
-    global next_scan_time, scan_event
+    global next_scan_time, scan_event, reset_interval_event
     with print_lock:
         config = load_config()
         print(f"\nCurrent scan interval is {config['interval']} seconds.")
@@ -123,11 +123,15 @@ def settings_menu():
         with print_lock:
             log("Invalid input. Please specify 'm' for minutes or 's' for seconds.")
 
+
+
 # Background scanning function
 def background_scanning():
     while True:
         check_albums(session)
-        time.sleep(load_config()['interval'])  # Load the interval from the configuration
+        reset_interval_event.wait(load_config()['interval'])  # Wait for interval change or manual scan
+        reset_interval_event.clear()  # Clear the event
+        
 
 # Check and process albums
 def check_albums(session):
@@ -166,23 +170,8 @@ def main_loop():
         background_scan_thread.daemon = True
         background_scan_thread.start()
 
-        while True:
-            current_time = time.time()
-            wait_time = next_scan_time - current_time
-            reset_interval_event.wait()  # Wait for the event to be set
-            reset_interval_event.clear()  # Clear the event
-            scan_event.wait(timeout=max(0, wait_time))
-            scan_event.clear()
-
-            if current_time >= next_scan_time:
-                check_albums()
-                config = load_config()
-                next_scan_time = current_time + config['interval']
-
     # Start the background scanning thread
-    scan_thread = threading.Thread(target=start_scanning)
-    scan_thread.daemon = True
-    scan_thread.start()
+    start_scanning()
 
     while True:
         user_input = input("\nPress 'c' to change settings, 's' to scan now, or 'q' to quit: \n")
@@ -191,8 +180,7 @@ def main_loop():
         elif user_input == 's':
             log("Manual scan triggered.")
             check_albums(session)
-            next_scan_time = time.time() + load_config()['interval']  # Reset next scan time to scheduled interval
-            scan_event.set()  # Ensure scan now respects the new interval if recently changed
+            reset_interval_event.set()  # Signal the scanning thread to reset its sleep cycle
         elif user_input == 'q':
             print("Exiting program.")
             break
