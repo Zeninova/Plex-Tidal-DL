@@ -122,8 +122,9 @@ def settings_menu():
         config['interval'] = new_interval
         save_config(config)
         log(f"Interval updated to {new_interval} seconds.")
-        next_scan_time = time.time() + new_interval  # Reset the next scan time immediately to the new interval
-        scan_event.set()  # Wake up the scan thread immediately
+        next_scan_time = time.time() + new_interval  # Recalculate the next scan time from now
+        scan_event.set()  # Trigger the event to immediately apply the new interval
+        scan_event.clear()  # Clear the event right after setting
     else:
         with print_lock:
             log("Invalid input. Please specify 'm' for minutes or 's' for seconds.")
@@ -165,21 +166,21 @@ def check_albums():
 
 
 def main_loop():
-    global scan_event
+    global next_scan_time, scan_event
     next_scan_time = time.time()
 
     def start_scanning():
-        global scan_event
-        nonlocal next_scan_time
+        global next_scan_time, scan_event
         while True:
-            time_to_wait = next_scan_time - time.time()
-            scan_event.wait(timeout=max(0, time_to_wait))
+            current_time = time.time()
+            wait_time = next_scan_time - current_time
+            scan_event.wait(timeout=max(0, wait_time))
             scan_event.clear()
 
-            if time.time() >= next_scan_time:
+            if current_time >= next_scan_time:
                 check_albums()
                 config = load_config()
-                next_scan_time = time.time() + config['interval']
+                next_scan_time = current_time + config['interval']
 
     scan_thread = threading.Thread(target=start_scanning)
     scan_thread.daemon = True
@@ -192,8 +193,7 @@ def main_loop():
         elif user_input == 's':
             log("Manual scan triggered.")
             check_albums()
-            next_scan_time = time.time() + load_config()['interval']
-            scan_event.set()
+            scan_event.set()  # Ensure scan now respects the new interval if recently changed
         elif user_input == 'q':
             print("Exiting program.")
             break
