@@ -1,6 +1,7 @@
 import threading
 import time
 import datetime
+import msvcrt  # Import the msvcrt module for non-blocking input
 from plexapi.server import PlexServer
 import tidalapi
 import subprocess
@@ -18,6 +19,7 @@ cred_file = current_directory + "/.credentials"
 
 print_lock = threading.Lock()
 scan_event = threading.Event()
+reset_interval_event = threading.Event()
 
 # Load or initialize configuration
 def load_config():
@@ -31,18 +33,6 @@ def load_config():
 def save_config(config):
     with open('config.json', 'w') as f:
         json.dump(config, f)
-
-
-def log(message, interval=None):
-    """ Helper function to add timestamp to log messages with thread synchronization. """
-    with print_lock:
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if interval is not None:
-            message += f" (Interval: {interval} seconds)"
-        print(f"\n{timestamp} - {message}")
-
-
-
 
 # Read credentials
 def read_creds():
@@ -97,9 +87,12 @@ def connect(session):
     return session.check_login()  
 
 # Enhanced log function to ensure thread-safe prints
-def thread_safe_log(message):
-    with threading.Lock():
-        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {message}")
+def log(message, interval=None):
+    with print_lock:
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if interval is not None:
+            message += f" (Interval: {interval} seconds)"
+        print(f"\n{timestamp} - {message}")
 
 # Settings menu
 def settings_menu():
@@ -122,58 +115,62 @@ def settings_menu():
         config['interval'] = new_interval
         save_config(config)
         log(f"Interval updated to {new_interval} seconds.")
-        next_scan_time = time.time() + new_interval  # Recalculate the next scan time from now
+        next_scan_time = time.time() + new_interval  # Update next scan time immediately
+        reset_interval_event.set()  # Signal the scanning thread to reset its sleep cycle
         scan_event.set()  # Trigger the event to immediately apply the new interval
         scan_event.clear()  # Clear the event right after setting
     else:
         with print_lock:
             log("Invalid input. Please specify 'm' for minutes or 's' for seconds.")
 
-
-
-
 # Background scanning function
 def background_scanning():
     while True:
-        check_albums()
+        check_albums(session)
         time.sleep(load_config()['interval'])  # Load the interval from the configuration
 
-
 # Check and process albums
-def check_albums():
-    while True:
-        config = load_config()  # Move this inside the loop to always get the latest interval
-        interval = config['interval']
-        favorite_albums = session.user.favorites.albums() if session.user.favorites.albums() else []
-        if not favorite_albums:
-            log("No favorited albums to process.", interval=interval)
-            time.sleep(interval)  # Sleep based on the updated interval
-            continue
+def check_albums(session):
+    config = load_config()  # Load the configuration outside the loop
+    interval = config['interval']
+    favorite_albums = session.user.favorites.albums() if session.user.favorites.albums() else []
+    if not favorite_albums:
+        log("No favorited albums to process.", interval=interval)
+        return
 
-        for album in favorite_albums:
-            log(f"{album.id} - {album.name} by {album.artist.name}", interval=interval)
-            command = f"tidal-dl -l {album.id}"
-            process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
-            if stderr:
-                log(f"Error executing command for album {album.id}: {stderr.decode('utf-8')}", interval=interval)
-            else:
-                log(stdout.decode("utf-8"), interval=interval)
-                session.user.favorites.remove_album(album.id)
-                update_library()
+    for album in favorite_albums:
+        log(f"{album.id} - {album.name} by {album.artist.name}", interval=interval)
+        command = f"tidal-dl -l {album.id}"
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        if stderr:
+            log(f"Error executing command for album {album.id}: {stderr.decode('utf-8')}", interval=interval)
+        else:
+            log(stdout.decode("utf-8"), interval=interval)
+            session.user.favorites.remove_album(album.id)
+            update_library()
 
+def update_library():
+    for library in plex.library.sections():
+        log(f"Updating library: {library.title}")
+        library.update()
 
-
-
+# Main loop
 def main_loop():
     global next_scan_time, scan_event
     next_scan_time = time.time()
 
     def start_scanning():
-        global next_scan_time, scan_event
+        global next_scan_time, scan_event, reset_interval_event
+        background_scan_thread = threading.Thread(target=background_scanning)
+        background_scan_thread.daemon = True
+        background_scan_thread.start()
+
         while True:
             current_time = time.time()
             wait_time = next_scan_time - current_time
+            reset_interval_event.wait()  # Wait for the event to be set
+            reset_interval_event.clear()  # Clear the event
             scan_event.wait(timeout=max(0, wait_time))
             scan_event.clear()
 
@@ -182,6 +179,7 @@ def main_loop():
                 config = load_config()
                 next_scan_time = current_time + config['interval']
 
+    # Start the background scanning thread
     scan_thread = threading.Thread(target=start_scanning)
     scan_thread.daemon = True
     scan_thread.start()
@@ -193,14 +191,15 @@ def main_loop():
         elif user_input == 's':
             log("Manual scan triggered.")
             check_albums()
+            next_scan_time = time.time() + load_config()['interval']  # Reset next scan time to scheduled interval
             scan_event.set()  # Ensure scan now respects the new interval if recently changed
         elif user_input == 'q':
             print("Exiting program.")
             break
+
 
 if __name__ == "__main__":
     if connect(session):
         main_loop()
     else:
         log("Connection has failed.")
-
