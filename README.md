@@ -5,7 +5,8 @@ This script is designed to run continuously, and it checks for recently added al
 
 Note: The Tidal app is NOT needed for this. All you need is a Plex server with a Tidal subscription, Python 3, and [Tidal-DL](https://github.com/yaronzz/Tidal-Media-Downloader)
 
-![image](https://github.com/Zeninova/Plex-Tidal-DL/assets/21183791/463915ba-de9d-4681-8791-de172c831b8c)
+![image](https://github.com/Zeninova/Plex-Tidal-DL/assets/21183791/f3f6e6f7-d3eb-40a2-8fcd-a12982e2166a)
+
 
 
 
