@@ -48,5 +48,4 @@ In the settings menu, you can change the interval and schedule start times inter
 ## Acknowledgments
 Special thanks to **dirty-jimm** for his original script. Check it out [here](https://github.com/dirty-jimm/Tidal_DL_Plus).
 
-![Plex-Tidal-DL in action](https://github.com/Zeninova/Plex-Tidal-DL/assets/21183791/f3f6e6f7-d3eb-40a2-8fcd-a12982e2166a)
 
