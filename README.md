@@ -35,7 +35,13 @@ You can adjust the frequency of checks by using the command-line argument `--i` 
 
 ### Settings Menu
 Run the script without any arguments and type 'c' to access the interactive settings menu:
-
+  ```bash
+  Press 'c' to change settings, 's' to scan now, or 'q' to quit:
+  c
+  Options:
+  1. Set Interval
+  2. Set Schedule Start Time
+  ```
 In the settings menu, you can change the interval and schedule start times interactively.
 
 ## Contribution
