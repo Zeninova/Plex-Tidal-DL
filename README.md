@@ -34,10 +34,8 @@ You can adjust the frequency of checks by using the command-line argument `--i` 
 **Note**: Only minute (m) and second (s) intervals are supported.
 
 ### Settings Menu
-Run the script without any arguments to access the interactive settings menu:
-```bash
-python plex-tidal-dl.py
-```
+Run the script without any arguments and type 'c' to access the interactive settings menu:
+
 In the settings menu, you can change the interval and schedule start times interactively.
 
 ## Contribution
