@@ -13,19 +13,6 @@
 - Python 3.x installed on your system.
 - Tidal-DL installed, which can be found [here](https://github.com/yaronzz/Tidal-Media-Downloader).
 
-## Installation
-1. Clone this repository to your local machine:
-   ```bash
-   git clone https://github.com/yourusername/Plex-Tidal-DL.git
-   ```
-2. Navigate to the cloned directory:
-   ```bash
-   cd Plex-Tidal-DL
-   ```
-3. Install required Python packages (if any):
-   ```bash
-   pip install -r requirements.txt
-   ```
 
 ## Usage
 To start the script with the default settings (checking every 30 minutes):
