@@ -7,9 +7,10 @@ To change the interval, you can enter ``python plex-tidal-dl.py --i 60m`` or ``p
 
 Note: The Tidal app is *not* needed for this. All you need is a Plex server with a Tidal subscription, Python 3, and [Tidal-DL](https://github.com/yaronzz/Tidal-Media-Downloader)
 
+Special thanks to dirty-jimm for his [script](https://github.com/dirty-jimm/Tidal_DL_Plus)
+
 ![image](https://github.com/Zeninova/Plex-Tidal-DL/assets/21183791/f3f6e6f7-d3eb-40a2-8fcd-a12982e2166a)
 
 
 
 
-Special thanks to dirty-jimm for his [script](https://github.com/dirty-jimm/Tidal_DL_Plus)
