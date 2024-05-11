@@ -8,10 +8,11 @@ import subprocess
 import os
 import json
 import logging
+import argparse
 from logging.handlers import TimedRotatingFileHandler
 
 baseurl = 'http://localhost:32400'
-token = '<TOKEN HERE>'
+token = '--L5DmQR3T_coBnzu3PW'
 plex = PlexServer(baseurl, token)
 
 session = tidalapi.Session()
@@ -86,41 +87,75 @@ def connect(session):
 def settings_menu():
     global next_scan_time, scan_event, reset_interval_event
     config = load_config()
-    logging.info(f"Current scan interval is {config['interval']} seconds.")
-    interval_input = input("Enter new interval (e.g., '30m' for 30 minutes or '45s' for 45 seconds): ")
+    print("Options: \n1. Set Interval \n2. Set Schedule Start Time")
+    choice = input("Enter choice: ")
 
-    valid_input = False
-    if interval_input.endswith('m'):
-        minutes = int(interval_input[:-1])
-        new_interval = minutes * 60
-        valid_input = True
-    elif interval_input.endswith('s'):
-        new_interval = int(interval_input[:-1])
-        valid_input = True
+    if choice == '1':
+        interval_input = input("Enter new interval (e.g., '30m' for 30 minutes or '45s' for 45 seconds): ")
+        valid_input = False
+        if interval_input.endswith('m'):
+            minutes = int(interval_input[:-1])
+            new_interval = minutes * 60
+            valid_input = True
+        elif interval_input.endswith('s'):
+            new_interval = int(interval_input[:-1])
+            valid_input = True
 
-    if valid_input:
-        config['interval'] = new_interval
-        save_config(config)
-        logging.info(f"Interval updated to {new_interval} seconds.")
-        
-        last_scan_time = time.time()
-        with open('last_scan_time.txt', 'w') as file:
-            file.write(str(last_scan_time))
-        
-        next_scan_time = last_scan_time + new_interval
-        next_scan_time_str = datetime.datetime.fromtimestamp(next_scan_time).strftime('%Y-%m-%d %H:%M:%S')
-        print(f"Next scan now scheduled for: {next_scan_time_str}")
+        if valid_input:
+            config['interval'] = new_interval
+            save_config(config)
+            logging.info(f"Interval updated to {new_interval} seconds.")
+            print(f"Please restart the application for the schedule changes to be applied.")
 
-        reset_interval_event.set()
-        reset_interval_event.clear()
-    else:
-        logging.warning("Invalid input for interval change.")
+            last_scan_time = time.time()
+            with open('last_scan_time.txt', 'w') as file:
+                file.write(str(last_scan_time))
+
+            next_scan_time = last_scan_time + new_interval
+            next_scan_time_str = datetime.datetime.fromtimestamp(next_scan_time).strftime('%Y-%m-%d %H:%M:%S')
+            logging.info(f"Next scan now scheduled for: {next_scan_time_str}")
+
+            reset_interval_event.set()
+            reset_interval_event.clear()
+        else:
+            logging.warning("Invalid input for interval change.")
+
+    elif choice == '2':
+        schedule_input = input("Enter schedule start time (e.g., 2024-05-11 19:00:00): ")
+        try:
+            scheduled_time = datetime.datetime.strptime(schedule_input, '%Y-%m-%d %H:%M:%S')
+            current_time = datetime.datetime.now()
+            if scheduled_time < current_time:
+                raise ValueError("Scheduled time must be in the future.")
+            initial_wait = (scheduled_time - current_time).total_seconds()
+            with open('scheduled_time.txt', 'w') as file:
+                file.write(schedule_input)
+            logging.info(f"Scan scheduled to start at: {scheduled_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Please restart the application for the schedule changes to be applied.")
+        except ValueError as e:
+            print(f"Invalid date format or date in the past: {e}")
 
 def background_scanning():
+    logging.info("Background scanning thread started.")
+    next_scan_time = None
+
     while True:
-        reset_interval_event.wait(load_config()['interval'])  
-        reset_interval_event.clear()  
-        check_albums(session)  
+        try:
+            current_time = time.time()
+            if next_scan_time is None or current_time >= next_scan_time:
+
+                logging.info("Performing interval-based scan.")
+                check_albums(session)
+
+                config = load_config()
+                interval = config['interval']
+                next_scan_time = current_time + interval
+
+            time.sleep(1)
+
+        except Exception as e:
+            logging.error(f"Error during background scanning: {str(e)}")
+            time.sleep(10)  
 
 def check_albums(session):
     config = load_config()
@@ -150,23 +185,27 @@ def check_albums(session):
             session.user.favorites.remove_album(album.id)
             update_library()
 
-
 def display_next_scan_time():
     try:
-        with open('last_scan_time.txt', 'r') as file:
-            last_scan_time = float(file.read().strip())
+
+        with open('scheduled_time.txt', 'r') as file:
+            scheduled_time_str = file.read().strip()
+        scheduled_time = datetime.datetime.strptime(scheduled_time_str, '%Y-%m-%d %H:%M:%S')
+        current_time = datetime.datetime.now()
+
+        if scheduled_time > current_time:
+            next_scan_time_str = scheduled_time.strftime('%Y-%m-%d %H:%M:%S')
+            logging.info(f"Next scan scheduled to start at: {next_scan_time_str}")
+        else:
+
+            raise ValueError("Scheduled time is in the past")
+    except (FileNotFoundError, ValueError):
+
         config = load_config()
         interval = config['interval']
-        next_scan_time = last_scan_time + interval
-        now = time.time()
-        if next_scan_time > now:
-            next_scan_time_str = datetime.datetime.fromtimestamp(next_scan_time).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"Next scan scheduled for: {next_scan_time_str}")
-        else:
-            print("Next scan scheduled to occur momentarily.")
-    except FileNotFoundError:
-        print("No previous scan information found. A scan will occur based on the configured interval.")
-
+        next_scan_time = time.time() + interval
+        next_scan_time_str = datetime.datetime.fromtimestamp(next_scan_time).strftime('%Y-%m-%d %H:%M:%S')
+        logging.info(f"Next scan scheduled for: {next_scan_time_str}")
 
 def update_library():
     for library in plex.library.sections():
@@ -196,6 +235,12 @@ def setup_logging():
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Control the media scanning script.")
+    parser.add_argument('-i', '--interval', type=str, help='Set the interval for scans, e.g., 30m or 45s')
+    parser.add_argument('-s', '--schedule', type=str, help='Schedule a start time for the scan, e.g., "2024-05-12 15:00:00"')
+    return parser.parse_args()
+
 def main_loop():
     global next_scan_time, scan_event
     next_scan_time = time.time()
@@ -215,10 +260,46 @@ def main_loop():
             logging.info("Exiting program.")
             break
 
+import sys
+import datetime
+
 if __name__ == "__main__":
+    args = parse_arguments()
     setup_logging()
-    display_next_scan_time() 
+
+    if args.interval:
+        try:
+            value = int(args.interval[:-1])
+            if args.interval.endswith('m'):
+                new_interval = value * 60
+            elif args.interval.endswith('s'):
+                new_interval = value
+            else:
+                raise ValueError("Invalid interval format.")
+
+            config = load_config()
+            config['interval'] = new_interval
+            save_config(config)
+            logging.info(f"Interval set via command line to {new_interval} seconds.")
+        except ValueError as e:
+            logging.error(f"Error setting interval from command line: {e}")
+            sys.exit(1)  
+
+    if args.schedule:
+        try:
+            scheduled_time = datetime.datetime.strptime(args.schedule, '%Y-%m-%d %H:%M:%S')
+            current_time = datetime.datetime.now()
+            if scheduled_time < current_time:
+                raise ValueError("Scheduled time must be in the future.")
+            with open('scheduled_time.txt', 'w') as file:
+                file.write(args.schedule)
+            logging.info(f"Scanning scheduled to start at: {args.schedule}")
+        except ValueError as e:
+            logging.error(f"Error setting scheduled time from command line: {e}")
+            sys.exit(1)  
+
     if connect(session):
+        display_next_scan_time()  
         main_loop()
     else:
         logging.error("Connection has failed.")
