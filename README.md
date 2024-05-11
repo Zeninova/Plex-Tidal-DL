@@ -44,13 +44,9 @@ Run the script without any arguments and type 'c' to access the interactive sett
   ```
 In the settings menu, you can change the interval and schedule start times interactively.
 
-## Contribution
-Contributions are welcome! Please feel free to submit pull requests or open issues to improve the functionality or fix problems with the script.
 
 ## Acknowledgments
-Special thanks to **dirty-jimm** for his contributions to the Tidal-DL community, which inspired this script. Check out his project [here](https://github.com/dirty-jimm/Tidal_DL_Plus).
+Special thanks to **dirty-jimm** for his original script. Check it out [here](https://github.com/dirty-jimm/Tidal_DL_Plus).
 
 ![Plex-Tidal-DL in action](https://github.com/Zeninova/Plex-Tidal-DL/assets/21183791/f3f6e6f7-d3eb-40a2-8fcd-a12982e2166a)
 
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
