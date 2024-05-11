@@ -3,7 +3,7 @@ Plex supports Tidal integration, and this is a simple script that checks for fav
 
 This script is designed to run continuously, and it checks for recently added albums every 30 minutes by default, although this can be changed. If no albums are found, the script will simply continue without updating your Plex library.
 
-To change the interval, you can enter * ``python plex-tidal-dl.py --60m`` to make it scan every 60 minutes. There is a settings menu in the program that lets you change the interval as well.
+To change the interval, you can enter ``python plex-tidal-dl.py --60m`` to make it scan every 60 minutes. There is a settings menu in the program that lets you change the interval as well.
 
 Note: The Tidal app is NOT needed for this. All you need is a Plex server with a Tidal subscription, Python 3, and [Tidal-DL](https://github.com/yaronzz/Tidal-Media-Downloader)
 
