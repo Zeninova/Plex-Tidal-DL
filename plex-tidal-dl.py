@@ -11,7 +11,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 
 baseurl = 'http://localhost:32400'
-token = '<TOKEN HERE>'
+token = 'TOKEN HERE>'
 plex = PlexServer(baseurl, token)
 
 session = tidalapi.Session()
@@ -102,10 +102,17 @@ def settings_menu():
         config['interval'] = new_interval
         save_config(config)
         logging.info(f"Interval updated to {new_interval} seconds.")
-        next_scan_time = time.time() + new_interval
+        
+        last_scan_time = time.time()
+        with open('last_scan_time.txt', 'w') as file:
+            file.write(str(last_scan_time))
+        
+        next_scan_time = last_scan_time + new_interval
+        next_scan_time_str = datetime.datetime.fromtimestamp(next_scan_time).strftime('%Y-%m-%d %H:%M:%S')
+        print(f"Next scan now scheduled for: {next_scan_time_str}")
+
         reset_interval_event.set()
-        scan_event.set()
-        scan_event.clear()
+        reset_interval_event.clear()
     else:
         logging.warning("Invalid input for interval change.")
 
@@ -119,6 +126,11 @@ def check_albums(session):
     config = load_config()
     interval = config['interval']
     favorite_albums = session.user.favorites.albums() if session.user.favorites.albums() else []
+
+    last_scan_time = time.time()
+    with open('last_scan_time.txt', 'w') as file:
+        file.write(str(last_scan_time))
+
     if not favorite_albums:
         logging.info("No favorited albums to process.", extra={"interval": interval})
         return
@@ -137,6 +149,24 @@ def check_albums(session):
 
             session.user.favorites.remove_album(album.id)
             update_library()
+
+
+def display_next_scan_time():
+    try:
+        with open('last_scan_time.txt', 'r') as file:
+            last_scan_time = float(file.read().strip())
+        config = load_config()
+        interval = config['interval']
+        next_scan_time = last_scan_time + interval
+        now = time.time()
+        if next_scan_time > now:
+            next_scan_time_str = datetime.datetime.fromtimestamp(next_scan_time).strftime('%Y-%m-%d %H:%M:%S')
+            print(f"Next scan scheduled for: {next_scan_time_str}")
+        else:
+            print("Next scan scheduled to occur momentarily.")
+    except FileNotFoundError:
+        print("No previous scan information found. A scan will occur based on the configured interval.")
+
 
 def update_library():
     for library in plex.library.sections():
@@ -187,6 +217,7 @@ def main_loop():
 
 if __name__ == "__main__":
     setup_logging()
+    display_next_scan_time() 
     if connect(session):
         main_loop()
     else:
