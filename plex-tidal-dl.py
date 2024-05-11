@@ -1,7 +1,7 @@
 import threading
 import time
 import datetime
-import msvcrt  # Import the msvcrt module for non-blocking input
+import msvcrt  
 from plexapi.server import PlexServer
 import tidalapi
 import subprocess
@@ -10,7 +10,6 @@ import json
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
-# Configuration and log setup
 baseurl = 'http://localhost:32400'
 token = '<TOKEN HERE>'
 plex = PlexServer(baseurl, token)
@@ -22,26 +21,22 @@ cred_file = current_directory + "/.credentials"
 scan_event = threading.Event()
 reset_interval_event = threading.Event()
 
-# Set up logging
 logging.basicConfig(level=logging.INFO, filename='application.log',
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Load or initialize configuration
 def load_config():
     try:
         with open('config.json', 'r') as f:
             return json.load(f)
     except FileNotFoundError:
         logging.warning("Config file not found. Using default settings.")
-        return {"interval": 1800}  # Default interval of 30 minutes in seconds
+        return {"interval": 1800}  
 
-# Save configuration
 def save_config(config):
     with open('config.json', 'w') as f:
         json.dump(config, f)
     logging.info("Configuration saved.")
 
-# Read credentials
 def read_creds():
     with open(cred_file, "r") as f:
         lines = f.readlines()
@@ -51,7 +46,6 @@ def read_creds():
         exp = lines[3][4:].strip()
     return typ, tok, ref, exp
 
-# Write credentials
 def write_creds(typ, tok, ref, exp):
     with open(cred_file, "w+") as f:
         f.write("typ=" + typ + "\n")
@@ -115,16 +109,12 @@ def settings_menu():
     else:
         logging.warning("Invalid input for interval change.")
 
-# Background scanning function
 def background_scanning():
     while True:
-        reset_interval_event.wait(load_config()['interval'])  # This will block until the interval elapses or an event is set
-        reset_interval_event.clear()  # Clear the event after waking up
-        check_albums(session)  # Move this after the wait to ensure timing is respected
+        reset_interval_event.wait(load_config()['interval'])  
+        reset_interval_event.clear()  
+        check_albums(session)  
 
-
-
-# Check and process albums
 def check_albums(session):
     config = load_config()
     interval = config['interval']
@@ -137,10 +127,14 @@ def check_albums(session):
         command = f"tidal-dl -l {album.id}"
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = process.communicate()
+
         if stderr:
-            logging.error(f"Error executing command for album {album.id}: {stderr.decode('utf-8')}", extra={"interval": interval})
+            logging.error(f"Error executing command for album {album.id}: {stderr.decode('utf-8', errors='replace')}", extra={"interval": interval})
         else:
-            logging.info(stdout.decode("utf-8"), extra={"interval": interval})
+
+            output = stdout.decode('utf-8', errors='ignore')
+            logging.info(output, extra={"interval": interval})
+
             session.user.favorites.remove_album(album.id)
             update_library()
 
@@ -149,48 +143,37 @@ def update_library():
         library.update()
         logging.info(f"Updating library: {library.title}")
 
-
 def setup_logging():
-    # Get the root logger
+
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
 
-    # Remove all handlers associated with the root logger
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
-    # Create a formatter
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
-    # Create and set up a timed rotating file handler
     file_handler = TimedRotatingFileHandler('application.log', when='midnight', interval=1, backupCount=30)
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
-    
-    # Optionally, keep some backup files (e.g., last 30 days)
+
     file_handler.backupCount = 30
 
-    # Create and set up a stream handler
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
     stream_handler.setLevel(logging.INFO)
 
-    # Add the handlers to the logger
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
-
-
 
 def main_loop():
     global next_scan_time, scan_event
     next_scan_time = time.time()
 
-    # Start the background scanning thread
     background_scan_thread = threading.Thread(target=background_scanning)
     background_scan_thread.daemon = True
     background_scan_thread.start()
 
-    # Handle user input
     while True:
         user_input = input("\nPress 'c' to change settings, 's' to scan now, or 'q' to quit: \n")
         if user_input == 'c':
