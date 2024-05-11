@@ -5,7 +5,7 @@ This script is designed to run continuously, and it checks for recently added al
 
 To change the interval, you can enter ``python plex-tidal-dl.py --i 60m`` or ``python plex-tidal-dl.py --interval 60m`` to make it scan every 60 minutes. There is a settings menu in the program that lets you change the interval as well.
 
-Note: The Tidal app is NOT needed for this. All you need is a Plex server with a Tidal subscription, Python 3, and [Tidal-DL](https://github.com/yaronzz/Tidal-Media-Downloader)
+Note: The Tidal app is *not* needed for this. All you need is a Plex server with a Tidal subscription, Python 3, and [Tidal-DL](https://github.com/yaronzz/Tidal-Media-Downloader)
 
 ![image](https://github.com/Zeninova/Plex-Tidal-DL/assets/21183791/f3f6e6f7-d3eb-40a2-8fcd-a12982e2166a)
 
