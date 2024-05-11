@@ -118,9 +118,11 @@ def settings_menu():
 # Background scanning function
 def background_scanning():
     while True:
-        check_albums(session)
-        reset_interval_event.wait(load_config()['interval'])
-        reset_interval_event.clear()
+        reset_interval_event.wait(load_config()['interval'])  # This will block until the interval elapses or an event is set
+        reset_interval_event.clear()  # Clear the event after waking up
+        check_albums(session)  # Move this after the wait to ensure timing is respected
+
+
 
 # Check and process albums
 def check_albums(session):
@@ -183,12 +185,12 @@ def main_loop():
     global next_scan_time, scan_event
     next_scan_time = time.time()
 
-    def start_scanning():
-        background_scan_thread = threading.Thread(target=background_scanning)
-        background_scan_thread.daemon = True
-        background_scan_thread.start()
+    # Start the background scanning thread
+    background_scan_thread = threading.Thread(target=background_scanning)
+    background_scan_thread.daemon = True
+    background_scan_thread.start()
 
-
+    # Handle user input
     while True:
         user_input = input("\nPress 'c' to change settings, 's' to scan now, or 'q' to quit: \n")
         if user_input == 'c':
@@ -196,7 +198,6 @@ def main_loop():
         elif user_input == 's':
             logging.info("Manual scan triggered.")
             check_albums(session)
-            reset_interval_event.set()
         elif user_input == 'q':
             logging.info("Exiting program.")
             break
