@@ -12,7 +12,7 @@ import argparse
 from logging.handlers import TimedRotatingFileHandler
 
 baseurl = 'http://localhost:32400'
-token = '--L5DmQR3T_coBnzu3PW'
+token = '<YOUR TOKEN HERE>'
 plex = PlexServer(baseurl, token)
 
 session = tidalapi.Session()
