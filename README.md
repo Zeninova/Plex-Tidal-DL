@@ -1,7 +1,7 @@
 
 # Plex-Tidal-DL
 
-**Plex-Tidal-DL** is a Python script designed to enhance your music experience by integrating Plex with Tidal. If you have a Tidal subscription and use Plex as your media server, this script automates the process of checking for newly favorited Tidal albums and downloading them using Tidal-DL. Once downloaded, the script updates your Plex library to include these new additions.
+Plex supports Tidal integration. If you have a Tidal subscription and use Plex as your media server, this script automates the process of checking for newly favorited Tidal albums and downloading them using Tidal-DL. Once downloaded, the script updates your Plex library to include these new additions.
 
 ## Features
 - **Automatic Syncing**: Regularly checks for new favorited albums on Tidal and downloads them.
