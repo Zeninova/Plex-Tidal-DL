@@ -11,6 +11,8 @@ import logging
 import argparse
 from logging.handlers import TimedRotatingFileHandler
 
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+
 baseurl = 'http://localhost:32400'
 token = '<YOUR TOKEN HERE>'
 plex = PlexServer(baseurl, token)
